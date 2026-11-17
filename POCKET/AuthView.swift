@@ -11,7 +11,7 @@ struct AuthGateView: View {
         Group {
             if isLoading {
                 ProgressView("Зареждане на POCKET...")
-            } else if let user = user {
+            } else if let user {
                 VStack(spacing: 0) {
                     HStack {
                         Text("POCKET")
@@ -26,31 +26,31 @@ struct AuthGateView: View {
                     }
                     .padding()
 
-                    EmeraldDashboardView()
+                    AccountStoreView(uid: user.uid) {
+                        EmeraldDashboardView(accountUID: user.uid)
+                    }
+                    .id(user.uid)
                 }
                 .sheet(isPresented: $showProfile) {
                     NavigationStack {
                         Form {
                             Section("Моят профил") {
-                                LabeledContent(
-                                    "Имейл",
-                                    value: user.email ?? "Няма имейл"
-                                )
+                                LabeledContent("Имейл", value: user.email ?? "Няма имейл")
                             }
-
                             Section {
-                                Button("Изход от акаунта",
-                                       role: .destructive) {
-                                    try? Auth.auth().signOut()
-                                    showProfile = false
+                                Button("Изход от акаунта", role: .destructive) {
+                                    do {
+                                        try Auth.auth().signOut()
+                                        showProfile = false
+                                    } catch {
+                                        // Leave the sheet open on failure so no false logout is shown.
+                                    }
                                 }
                             }
                         }
                         .navigationTitle("Профил")
                         .toolbar {
-                            Button("Готово") {
-                                showProfile = false
-                            }
+                            Button("Готово") { showProfile = false }
                         }
                     }
                 }
@@ -60,13 +60,12 @@ struct AuthGateView: View {
         }
         .onAppear {
             if listener == nil {
-                listener = Auth.auth()
-                    .addStateDidChangeListener { _, newUser in
-                        DispatchQueue.main.async {
-                            user = newUser
-                            isLoading = false
-                        }
+                listener = Auth.auth().addStateDidChangeListener { _, newUser in
+                    DispatchQueue.main.async {
+                        user = newUser
+                        isLoading = false
                     }
+                }
             }
         }
         .onDisappear {
@@ -91,57 +90,38 @@ struct AuthView: View {
                 VStack(spacing: 20) {
                     Image(systemName: "wallet.pass.fill")
                         .font(.system(size: 65))
-                        .foregroundStyle(.blue)
-
+                        .foregroundStyle(.green)
                     Text("POCKET")
                         .font(.largeTitle.bold())
-
-                    Text(isRegistering
-                         ? "Създай своя акаунт"
-                         : "Добре дошъл отново")
+                    Text(isRegistering ? "Създай своя акаунт" : "Добре дошъл отново")
                         .foregroundStyle(.secondary)
-
                     TextField("Имейл адрес", text: $email)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .textFieldStyle(.roundedBorder)
-
                     SecureField("Парола", text: $password)
-                        .textContentType(
-                            isRegistering ? .newPassword : .password
-                        )
+                        .textContentType(isRegistering ? .newPassword : .password)
                         .textFieldStyle(.roundedBorder)
-
                     if !errorMessage.isEmpty {
                         Text(errorMessage)
                             .foregroundStyle(.red)
                             .font(.footnote)
                     }
-
                     Button {
                         Task { await authenticate() }
                     } label: {
                         HStack {
-                            if isBusy {
-                                ProgressView()
-                                    .tint(.white)
-                            }
-                            Text(isRegistering
-                                 ? "Регистрация" : "Вход")
+                            if isBusy { ProgressView().tint(.white) }
+                            Text(isRegistering ? "Регистрация" : "Вход")
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(
-                        isBusy || email.isEmpty || password.isEmpty
-                    )
-
-                    Button(isRegistering
-                           ? "Имаш акаунт? Влез"
-                           : "Нямаш акаунт? Регистрирай се") {
+                    .disabled(isBusy || email.isEmpty || password.isEmpty)
+                    Button(isRegistering ? "Имаш акаунт? Влез" : "Нямаш акаунт? Регистрирай се") {
                         isRegistering.toggle()
                         errorMessage = ""
                     }
@@ -158,24 +138,13 @@ struct AuthView: View {
         isBusy = true
         errorMessage = ""
         defer { isBusy = false }
-
         do {
-            let cleanEmail = email.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
-
+            let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
             if isRegistering {
-                _ = try await Auth.auth().createUser(
-                    withEmail: cleanEmail,
-                    password: password
-                )
+                _ = try await Auth.auth().createUser(withEmail: cleanEmail, password: password)
             } else {
-                _ = try await Auth.auth().signIn(
-                    withEmail: cleanEmail,
-                    password: password
-                )
+                _ = try await Auth.auth().signIn(withEmail: cleanEmail, password: password)
             }
-
             password = ""
         } catch {
             errorMessage = error.localizedDescription

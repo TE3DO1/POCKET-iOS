@@ -21,6 +21,7 @@ private struct PocketCard: Identifiable, Codable {
 }
 
 struct EmeraldDashboardView: View {
+    let accountUID: String
     @Query(sort: \MoneyTransaction.date, order: .reverse)
     private var transactions: [MoneyTransaction]
     @AppStorage("currency") private var currency = "EUR"
@@ -151,7 +152,7 @@ struct EmeraldDashboardView: View {
                 case .income:
                     EmeraldEntryView(kind: .income)
                 case .transfer:
-                    TransferNotesView()
+                    TransferNotesView(accountUID: accountUID)
                 case .cards:
                     EmeraldCardsView(cards: $cards, saveCards: saveCards)
                 }
@@ -209,15 +210,18 @@ struct EmeraldDashboardView: View {
         )
     }
 
+    private var cardsStorageKey: String { "pocket_cards_v1_\(accountUID)" }
+
     private func loadCards() {
-        guard let data = UserDefaults.standard.data(forKey: "pocket_cards_v1"),
+        cards = []
+        guard let data = UserDefaults.standard.data(forKey: cardsStorageKey),
               let decoded = try? JSONDecoder().decode([PocketCard].self, from: data) else { return }
         cards = decoded
     }
 
     private func saveCards() {
         guard let data = try? JSONEncoder().encode(cards) else { return }
-        UserDefaults.standard.set(data, forKey: "pocket_cards_v1")
+        UserDefaults.standard.set(data, forKey: cardsStorageKey)
     }
 }
 
@@ -334,6 +338,8 @@ private struct EmeraldEntryView: View {
 }
 
 private struct TransferNotesView: View {
+    let accountUID: String
+    private var storageKey: String { "pocket_transfer_notes_v1_\(accountUID)" }
     @Environment(\.dismiss) private var dismiss
     @State private var from = ""
     @State private var to = ""
@@ -350,7 +356,7 @@ private struct TransferNotesView: View {
                     Button("Запази бележката") {
                         let note = "\(Date.now.formatted(date: .numeric, time: .omitted)): \(from) → \(to), \(amount)"
                         notes.insert(note, at: 0)
-                        UserDefaults.standard.set(notes, forKey: "pocket_transfer_notes_v1")
+                        UserDefaults.standard.set(notes, forKey: storageKey)
                         from = ""; to = ""; amount = ""
                     }
                     .disabled(from.isEmpty || to.isEmpty || amount.isEmpty)
@@ -359,7 +365,7 @@ private struct TransferNotesView: View {
                     ForEach(notes, id: \.self) { note in Text(note) }
                         .onDelete { indexes in
                             notes.remove(atOffsets: indexes)
-                            UserDefaults.standard.set(notes, forKey: "pocket_transfer_notes_v1")
+                            UserDefaults.standard.set(notes, forKey: storageKey)
                         }
                 }
                 Section {
@@ -370,7 +376,7 @@ private struct TransferNotesView: View {
             .navigationTitle("Превод")
             .toolbar { Button("Готово") { dismiss() } }
             .onAppear {
-                notes = UserDefaults.standard.stringArray(forKey: "pocket_transfer_notes_v1") ?? []
+                notes = UserDefaults.standard.stringArray(forKey: storageKey) ?? []
             }
         }
     }

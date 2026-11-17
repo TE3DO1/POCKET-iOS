@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 import FirebaseCore
 
 @main
@@ -12,6 +11,5 @@ struct PocketApp: App {
         WindowGroup {
             AuthGateView()
         }
-        .modelContainer(for: MoneyTransaction.self)
     }
 }
