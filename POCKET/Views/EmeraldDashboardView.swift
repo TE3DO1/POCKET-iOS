@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import FirebaseFirestore
 
 private enum EmeraldStyle {
     static let background = Color(red: 0.035, green: 0.075, blue: 0.065)
@@ -22,6 +23,8 @@ private struct PocketCard: Identifiable, Codable {
 
 struct EmeraldDashboardView: View {
     let accountUID: String
+    @Environment(\.modelContext) private var syncContext
+    @State private var cloudListener: ListenerRegistration?
     @Query(sort: \MoneyTransaction.date, order: .reverse)
     private var transactions: [MoneyTransaction]
     @AppStorage("currency") private var currency = "EUR"
@@ -144,13 +147,22 @@ struct EmeraldDashboardView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(EmeraldStyle.background, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .onAppear(perform: loadCards)
+            .onAppear {
+                loadCards()
+                if cloudListener == nil {
+                    cloudListener = CloudTransactionSync.start(uid: accountUID, context: syncContext)
+                }
+            }
+            .onDisappear {
+                cloudListener?.remove()
+                cloudListener = nil
+            }
             .sheet(item: $selectedAction) { action in
                 switch action {
                 case .expense:
-                    EmeraldEntryView(kind: .expense)
+                    EmeraldEntryView(kind: .expense, accountUID: accountUID)
                 case .income:
-                    EmeraldEntryView(kind: .income)
+                    EmeraldEntryView(kind: .income, accountUID: accountUID)
                 case .transfer:
                     TransferNotesView(accountUID: accountUID)
                 case .cards:
@@ -286,6 +298,7 @@ private struct EmeraldEntryView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     let kind: TransactionKind
+    let accountUID: String
     @State private var title = ""
     @State private var amount = ""
     @State private var category: TransactionCategory = .other
@@ -330,10 +343,17 @@ private struct EmeraldEntryView: View {
 
     private func save() {
         guard let cents else { return }
-        context.insert(MoneyTransaction(title: title, amountInCents: cents,
-                                        kind: kind, category: category))
-        do { try context.save(); dismiss() }
-        catch { errorText = "Записът не бе успешен. Опитай отново." }
+        let item = MoneyTransaction(title: title, amountInCents: cents,
+                                    kind: kind, category: category,
+                                    cloudID: UUID().uuidString)
+        context.insert(item)
+        do {
+            try context.save()
+            CloudTransactionSync.upload(item, uid: accountUID)
+            dismiss()
+        } catch {
+            errorText = "Записът не бе успешен. Опитай отново."
+        }
     }
 }
 

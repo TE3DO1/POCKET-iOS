@@ -38,13 +38,17 @@ final class MoneyTransaction {
     var kindRaw: String
     var categoryRaw: String
     var date: Date
+    // Nil for older local records: intentionally NOT uploaded without approval.
+    var cloudID: String?
 
-    init(title: String, amountInCents: Int, kind: TransactionKind, category: TransactionCategory, date: Date = .now) {
+    init(title: String, amountInCents: Int, kind: TransactionKind,
+         category: TransactionCategory, date: Date = .now, cloudID: String? = nil) {
         self.title = title
         self.amountInCents = amountInCents
         self.kindRaw = kind.rawValue
         self.categoryRaw = category.rawValue
         self.date = date
+        self.cloudID = cloudID
     }
 
     var kind: TransactionKind { TransactionKind(rawValue: kindRaw) ?? .expense }
