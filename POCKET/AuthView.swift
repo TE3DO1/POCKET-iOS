@@ -26,7 +26,7 @@ struct AuthGateView: View {
                     }
                     .padding()
 
-                    ContentView()
+                    EmeraldDashboardView()
                 }
                 .sheet(isPresented: $showProfile) {
                     NavigationStack {
